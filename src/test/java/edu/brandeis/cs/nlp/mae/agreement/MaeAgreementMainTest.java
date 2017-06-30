@@ -26,14 +26,19 @@ package edu.brandeis.cs.nlp.mae.agreement;
 
 import edu.brandeis.cs.nlp.mae.MaeStrings;
 import edu.brandeis.cs.nlp.mae.database.LocalSqliteDriverImpl;
+import edu.brandeis.cs.nlp.mae.database.MaeDBException;
 import edu.brandeis.cs.nlp.mae.database.MaeDriverI;
 import edu.brandeis.cs.nlp.mae.io.DTDLoader;
+import edu.brandeis.cs.nlp.mae.io.MaeIODTDException;
+import edu.brandeis.cs.nlp.mae.io.MaeIOException;
 import edu.brandeis.cs.nlp.mae.util.MappedSet;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.xml.sax.SAXException;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.util.LinkedList;
 
@@ -56,6 +61,27 @@ public class MaeAgreementMainTest {
 
     @Before
     public void setUp() throws Exception {
+        loadTask();
+    }
+
+    private void loadDirDataset() throws MaeIOException, MaeDBException, SAXException, IOException {
+        assert calc != null;
+        URL exampleDirUrl = Thread.currentThread().getContextClassLoader().getResource("iaa_example/dirs");
+        File exampleDir = new File(exampleDirUrl.getPath());
+        calc.indexDataset(exampleDir);
+        calc.loadXmlFiles();
+    }
+
+
+    private void loadFileDataset() throws MaeIOException, MaeDBException, SAXException, IOException {
+        assert calc != null;
+        URL exmapleFileUrl = Thread.currentThread().getContextClassLoader().getResource("iaa_example");
+        File exampleDir = new File(exmapleFileUrl.getPath());
+        calc.indexDataset(exampleDir);
+        calc.loadXmlFiles();
+    }
+
+    private void loadTask() throws MaeDBException, MaeIODTDException {
         driver = new LocalSqliteDriverImpl(MaeStrings.TEST_DB_FILE);
         driver.setAnnotationFileName("TEST_SAMPLE");
         DTDLoader dtdLoader = new DTDLoader(driver);
@@ -64,25 +90,23 @@ public class MaeAgreementMainTest {
         dtdLoader.read(sampleFile);
 
         calc = new MaeAgreementMain(driver);
-
-        URL exmapleFileUrl = Thread.currentThread().getContextClassLoader().getResource("iaa_example");
-        File exampleDir = new File(exmapleFileUrl.getPath());
-        calc.indexDataset(exampleDir);
-        calc.loadXmlFiles();
     }
 
     @Test
     public void canValidateTaskNames() throws Exception {
+        loadFileDataset();
         assertTrue(calc.validateTaskNames("NounVerbTask").equals(SUCCESS));
     }
 
     @Test
     public void canValidateTextSharing() throws Exception {
+        loadFileDataset();
         assertTrue(calc.validateTextSharing().equals(SUCCESS));
     }
 
     @Test
     public void testGlobalMultiPiAgreement() throws Exception {
+        loadFileDataset();
         MappedSet<String, String> sample = new MappedSet<>();
         sample.putCollection("MOOD_DECL", new LinkedList<>());
         sample.putCollection("MOOD_IMPE", new LinkedList<>());
@@ -92,13 +116,39 @@ public class MaeAgreementMainTest {
 
     @Test
     public void testLocalMultiPiAgreement() throws Exception {
+        loadFileDataset();
         MappedSet<String, String> sample = new MappedSet<>();
         sample.putCollection("NAMED_ENTITY", new LinkedList<String>() {{add("type");}});
         System.out.println(calc.agreementsToString("LocalMultiPi", calc.calculateLocalMultiPi(sample)));
     }
 
     @Test
+    public void testDirAndFileHaveSameResult() throws Exception {
+        MappedSet<String, String> sample = new MappedSet<>();
+        sample.putCollection("NOUN", new LinkedList<String>() {{ add("type"); add("comment"); }});
+        sample.putCollection("VERB", new LinkedList<String>() {{ add("tense"); add("aspect"); }});
+        sample.putCollection("ADJ_ADV", new LinkedList<String>() {{ add("type"); }});
+
+        loadFileDataset();
+        System.out.println(calc.agreementsToString("LocalUnitize", calc.calculateLocalAlphaU(sample)));
+
+        loadDirDataset();
+        System.out.println(calc.agreementsToString("LocalUnitize", calc.calculateLocalAlphaU(sample)));
+
+        sample = new MappedSet<>();
+        sample.putCollection("NAMED_ENTITY", new LinkedList<String>() {{add("type");}});
+
+        loadFileDataset();
+        System.out.println(calc.agreementsToString("LocalMultiPi", calc.calculateLocalMultiPi(sample)));
+
+        loadDirDataset();
+        System.out.println(calc.agreementsToString("LocalMultiPi", calc.calculateLocalMultiPi(sample)));
+
+    }
+
+    @Test
     public void testLocalUnitizationAgreement() throws Exception {
+        loadFileDataset();
         MappedSet<String, String> sample = new MappedSet<>();
         sample.putCollection("NOUN", new LinkedList<String>() {{add("type"); add("comment");}});
         sample.putCollection("VERB", new LinkedList<String>() {{add("tense"); add("aspect");}});
@@ -108,6 +158,7 @@ public class MaeAgreementMainTest {
 
     @Test
     public void testGlobalUnitizationAgreement() throws Exception {
+        loadFileDataset();
         MappedSet<String, String> sample = new MappedSet<>();
         sample.putCollection("NOUN", new LinkedList<String>() {{add("type"); add("comment");}});
         sample.putCollection("VERB", new LinkedList<String>() {{add("tense"); add("aspect");}});
